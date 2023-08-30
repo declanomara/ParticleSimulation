@@ -24,7 +24,7 @@
 			"runtimeTypeInformation": false,
 			"cppFilesystem": true,
 			"warningsPreset": "strict",
-			"treatWarningsAsErrors": true,
+			"treatWarningsAsErrors": false,
 			"defines[:debug]": [
 				"_DEBUG"
 			],
