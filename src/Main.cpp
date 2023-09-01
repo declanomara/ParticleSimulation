@@ -31,7 +31,7 @@ ParticleSystem initializeSimulation()
 		Particle particle = Particle(1.0f, (double)1.0f, position, velocity);
 		particle.setMinimumRenderRadius(2);
 		particle.setColor(sf::Color::White);
-		particleSystem.addTestParticle(particle);
+		particleSystem.addParticle(particle);
 	}
 
 	return particleSystem;
@@ -103,6 +103,7 @@ int main()
 
 	// Render variables
 	bool drawGravityField = false;
+	bool drawTrails = false;
 	Particle* selectedParticle = nullptr;
 
 	// Main loop
@@ -191,13 +192,19 @@ int main()
 				particleSystem.update(dt);
 			}
 
-			// If G is pressed, toggle gravity field drawing
-			if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::G)
-			{
-				drawGravityField = !drawGravityField;
-			}
+		// If G is pressed, toggle gravity field drawing
+		if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::G)
+		{
+			drawGravityField = !drawGravityField;
+		}
 
-			// If space is pressed, pause or unpause the simulation
+		// If T is pressed, toggle trail drawing
+		if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::T)
+		{
+			drawTrails = !drawTrails;
+		}
+
+		// If space is pressed, pause or unpause the simulation
 			if (event.type == sf::Event::KeyPressed && event.key.code == sf::Keyboard::Space)
 			{
 				paused = !paused;
@@ -330,10 +337,8 @@ int main()
 			for (int i = 0; i < substeps; i++)
 			{
 				elapsedTime += subTimeStep;
-				particleSystem.calculateForces();
-				particleSystem.calculateTestForces();
+				particleSystem.calculateForcesBarnesHut();
 				particleSystem.update(subTimeStep);
-				particleSystem.lazyUpdate(subTimeStep);
 			}
 		}
 
@@ -349,29 +354,35 @@ int main()
 			}
 		}
 
-		// Draw the particles
-		particleSystem.draw(window);
+	// Draw the particles
+	particleSystem.draw(window);
 
-		// Draw the trails
+	// Draw the trails
+	if (drawTrails)
+	{
 		for (auto& particle : particleSystem.getParticles())
 		{
 			particle.drawTrail(window);
 		}
+	}
 
 		// Draw the UI
 		window.setView(window.getDefaultView());
 		gui.draw(window);
 		window.setView(simView);
 
-		// If a particle is selected, center the view on it
-		if (selectedParticle)
-		{
-			sf::Vector2f selectedParticlePos = util::toSFML(selectedParticle->getPosition().cast<float>());
-			simView.setCenter(selectedParticlePos);
+	// If a particle is selected, center the view on it
+	if (selectedParticle)
+	{
+		sf::Vector2f selectedParticlePos = util::toSFML(selectedParticle->getPosition().cast<float>());
+		simView.setCenter(selectedParticlePos);
 
+		if (drawTrails)
+		{
 			selectedParticle->updateTrail();
 			selectedParticle->drawTrail(window);
 		}
+	}
 
 		window.display();
 

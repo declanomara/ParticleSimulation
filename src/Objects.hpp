@@ -35,13 +35,13 @@ public:
 
 	bool visiblyContains(Eigen::Vector2d position, sf::RenderWindow& window);
 
-	float getRadius();
-	double getMass();
+	float getRadius() const;
+	double getMass() const;
 
-	Eigen::Vector2d getPosition();
-	Eigen::Vector2d getVelocity();
-	Eigen::Vector2d getAcceleration();
-	Eigen::Vector2d getForce();
+	Eigen::Vector2d getPosition() const;
+	Eigen::Vector2d getVelocity() const;
+	Eigen::Vector2d getAcceleration() const;
+	Eigen::Vector2d getForce() const;
 
 	double calculatePotentialEnergy(Eigen::Vector2f position);
 	void setColor(sf::Color color);
@@ -51,21 +51,15 @@ class ParticleSystem
 {
 private:
 	std::vector<Particle> particles;
-	std::vector<Particle> testParticles;
 	std::vector<Particle> destroyedParticles;
 
 public:
 	ParticleSystem();
 	void update(float dt);
-	void lazyUpdate(float dt);
-	void calculateForces();
-	void calculateTestForces();
+	void calculateForcesBarnesHut();
 	void draw(sf::RenderWindow& window);
 
-	void destroyTestParticlesNear(Particle particle);
-
 	void addParticle(Particle particle);
-	void addTestParticle(Particle particle);
 
 	double calculatePotentialEnergy(Eigen::Vector2f position);
 

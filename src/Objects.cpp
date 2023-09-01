@@ -1,4 +1,5 @@
 #include "Objects.hpp"
+#include "QuadTree.hpp"
 #include "utils.hpp"
 
 Particle::Particle(float radius, double mass, Eigen::Vector2d position, Eigen::Vector2d velocity) :
@@ -97,32 +98,32 @@ void Particle::setMinimumRenderRadius(int minimumRenderRadiusPx)
 	this->minimumRenderRadiusPx = minimumRenderRadiusPx;
 }
 
-float Particle::getRadius()
+float Particle::getRadius() const
 {
 	return radius;
 }
 
-double Particle::getMass()
+double Particle::getMass() const
 {
 	return mass;
 }
 
-Eigen::Vector2d Particle::getPosition()
+Eigen::Vector2d Particle::getPosition() const
 {
 	return position;
 }
 
-Eigen::Vector2d Particle::getVelocity()
+Eigen::Vector2d Particle::getVelocity() const
 {
 	return velocity;
 }
 
-Eigen::Vector2d Particle::getAcceleration()
+Eigen::Vector2d Particle::getAcceleration() const
 {
 	return acceleration;
 }
 
-Eigen::Vector2d Particle::getForce()
+Eigen::Vector2d Particle::getForce() const
 {
 	return force;
 }
@@ -142,19 +143,9 @@ void ParticleSystem::addParticle(Particle particle)
 	particles.push_back(particle);
 }
 
-void ParticleSystem::addTestParticle(Particle particle)
-{
-	testParticles.push_back(particle);
-}
-
 void ParticleSystem::draw(sf::RenderWindow& window)
 {
 	for (Particle& particle : particles)
-	{
-		particle.draw(window);
-	}
-
-	for (Particle& particle : testParticles)
 	{
 		particle.draw(window);
 	}
@@ -165,61 +156,46 @@ void ParticleSystem::update(float dt)
 	for (Particle& particle : particles)
 	{
 		particle.update(dt);
-	}
-}
-
-void ParticleSystem::lazyUpdate(float dt)
-{
-	for (Particle& particle : testParticles)
-	{
-		particle.update(dt);
-	}
-
-	for (Particle& particle : particles)
-	{
 		particle.updateTrail();
 	}
 }
 
-void ParticleSystem::calculateForces()
+void ParticleSystem::calculateForcesBarnesHut()
 {
-	// Iterate over all pairs of particles, calculate the force between them, and apply it to each particle
-	for (size_t i = 0; i < particles.size(); i++)
+	if (particles.empty()) return;
+
+	// Calculate bounds for all particles with some padding
+	Eigen::Vector2d minBounds = particles[0].getPosition();
+	Eigen::Vector2d maxBounds = particles[0].getPosition();
+
+	for (const Particle& particle : particles)
 	{
-		for (size_t j = i + 1; j < particles.size(); j++)
-		{
-			Particle& particle1 = particles[i];
-			Particle& particle2 = particles[j];
-
-			Eigen::Vector2d direction = particle2.getPosition() - particle1.getPosition();
-			float distance = direction.norm();
-			double forceMagnitude = constants::G * particle1.getMass() * particle2.getMass() / (distance * distance);
-			Eigen::Vector2d force = forceMagnitude * direction.normalized();
-
-			particle1.applyForce(force);
-			particle2.applyForce(-force);
-		}
-
-		// std::cout << "Force on particle " << i << ": " << particles[i].getForce().transpose() << std::endl;
+		const Eigen::Vector2d& pos = particle.getPosition();
+		minBounds.x() = std::min(minBounds.x(), pos.x());
+		minBounds.y() = std::min(minBounds.y(), pos.y());
+		maxBounds.x() = std::max(maxBounds.x(), pos.x());
+		maxBounds.y() = std::max(maxBounds.y(), pos.y());
 	}
-}
 
-void ParticleSystem::calculateTestForces()
-{
-	// Iterate over all test particles and calculate the force on each test particle due to particles in the system
-	for (Particle& testParticle : testParticles)
+	// Add padding (10% on each side)
+	Eigen::Vector2d size = maxBounds - minBounds;
+	double padding = std::max(size.x(), size.y()) * 0.1;
+	if (padding < 1e9) padding = 1e9; // Minimum padding
+
+	minBounds.x() -= padding;
+	minBounds.y() -= padding;
+	maxBounds.x() += padding;
+	maxBounds.y() += padding;
+
+	// Build the quadtree
+	QuadTree tree(minBounds, maxBounds);
+	tree.build(particles);
+
+	// Calculate forces for each particle using the tree
+	for (Particle& particle : particles)
 	{
-		Eigen::Vector2d force = Eigen::Vector2d::Zero();
-
-		for (Particle& particle : particles)
-		{
-			Eigen::Vector2d direction = particle.getPosition() - testParticle.getPosition();
-			float distance = direction.norm();
-			double forceMagnitude = constants::G * particle.getMass() * testParticle.getMass() / (distance * distance);
-			force += forceMagnitude * direction.normalized();
-		}
-
-		testParticle.applyForce(force);
+		Eigen::Vector2d force = tree.calculateForce(particle);
+		particle.applyForce(force);
 	}
 }
 
@@ -266,32 +242,12 @@ Particle* ParticleSystem::particleVisibleAt(Eigen::Vector2f position, sf::Render
 		}
 	}
 
-	for (Particle& particle : testParticles)
-	{
-		if (particle.visiblyContains(position.cast<double>(), window))
-		{
-			return &particle;
-		}
-	}
-
 	return nullptr;
 }
 
 int ParticleSystem::getParticleCount()
 {
-	return particles.size() + testParticles.size();
-}
-
-void ParticleSystem::destroyTestParticlesNear(Particle particle)
-{
-	// Iterate over all test particles and if they are within 10 radii of the given particle, add them to the destroyedParticles vector
-	for (Particle& testParticle : testParticles)
-	{
-		if ((testParticle.getPosition() - particle.getPosition()).norm() < (double)10 * particle.getRadius())
-		{
-			destroyedParticles.push_back(testParticle);
-		}
-	}
+	return particles.size();
 }
 
 int ParticleSystem::getDestroyedParticleCount()
